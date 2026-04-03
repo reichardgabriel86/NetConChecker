@@ -19,7 +19,7 @@ SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
-EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER", EMAIL_SENDER)
+EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER", EMAIL_SENDER)  # Will prompt to confirm in main()
 
 # Delay between full check cycles (seconds)
 CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "300"))
@@ -80,8 +80,19 @@ def send_email_alert(ip, traceroute_output):
         logging.error(f"Failed to send email alert for IP {ip}: {e}")
 
 def main():
+    global EMAIL_RECEIVER
     print(f"Network Connectivity Checker started.")
-    print(f"Checking IPs: {IPS_TO_CHECK}")
+    
+    default_email = EMAIL_RECEIVER or ""
+    prompt_text = f"Enter the email address to receive reports [{default_email}]: " if default_email else "Enter the email address to receive reports: "
+    user_input = input(prompt_text).strip()
+    if user_input:
+        EMAIL_RECEIVER = user_input
+    elif not default_email:
+        print("No email receiver provided. Email alerts will be disabled unless configured.")
+    
+    print(f"\nMonitoring IPs: {IPS_TO_CHECK}")
+    print(f"Reports will be sent to: {EMAIL_RECEIVER if EMAIL_RECEIVER else 'None'}\n")
     logging.info("Network Connectivity Checker started.")
     
     # State tracking to avoid spamming emails for the same outage
