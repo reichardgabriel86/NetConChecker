@@ -54,20 +54,19 @@ def tracert(ip):
     except Exception as e:
         return str(e)
 
-def send_email_alert(ip, traceroute_output):
-    """Sends an email alert containing the traceroute info."""
+def send_email_report(report_body):
+    """Sends an email containing the compiled network report."""
     if not EMAIL_SENDER or not EMAIL_PASSWORD:
-        logging.warning("Email credentials not configured. Skipping email alert.")
+        logging.warning("Email credentials not configured. Skipping email report.")
         return
 
-    subject = f"Network Outage Alert: {ip}"
-    body = f"Connectivity check failed for IP: {ip}\n\nTraceroute Output:\n{traceroute_output}"
+    subject = "Network Connectivity Report"
 
     msg = MIMEMultipart()
     msg['From'] = EMAIL_SENDER
     msg['To'] = EMAIL_RECEIVER
     msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
+    msg.attach(MIMEText(report_body, 'plain'))
 
     try:
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
@@ -75,9 +74,11 @@ def send_email_alert(ip, traceroute_output):
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.send_message(msg)
         server.quit()
-        logging.info(f"Email alert sent successfully to {EMAIL_RECEIVER} for IP {ip}.")
+        logging.info(f"Email report sent successfully to {EMAIL_RECEIVER}.")
+        print(f"Email report sent successfully to {EMAIL_RECEIVER}.")
     except Exception as e:
-        logging.error(f"Failed to send email alert for IP {ip}: {e}")
+        logging.error(f"Failed to send email report: {e}")
+        print(f"Failed to send email report: {e}")
 
 def main():
     global EMAIL_RECEIVER
@@ -93,43 +94,33 @@ def main():
     
     print(f"\nMonitoring IPs: {IPS_TO_CHECK}")
     print(f"Reports will be sent to: {EMAIL_RECEIVER if EMAIL_RECEIVER else 'None'}\n")
-    logging.info("Network Connectivity Checker started.")
+    logging.info("Network Connectivity Checker (One-time check) started.")
     
-    # State tracking to avoid spamming emails for the same outage
-    recent_outages = {ip: False for ip in IPS_TO_CHECK}
+    report_lines = ["Network Connectivity Report:\n"]
     
-    try:
-        while True:
-            for ip in IPS_TO_CHECK:
-                print(f"Checking {ip}...")
-                is_up, _ = ping(ip)
-                
-                if not is_up:
-                    if not recent_outages[ip]:
-                        logging.error(f"Connectivity to {ip} failed. Running traceroute...")
-                        print(f"Connectivity to {ip} failed. Running traceroute...")
-                        
-                        trace = tracert(ip)
-                        logging.error(f"Traceroute for {ip}:\n{trace}")
-                        
-                        send_email_alert(ip, trace)
-                        recent_outages[ip] = True # Mark as down
-                    else:
-                        logging.error(f"Connectivity to {ip} is still down.")
-                        print(f"Connectivity to {ip} is still down.")
-                else:
-                    if recent_outages[ip]:
-                        logging.info(f"Connectivity to {ip} restored.")
-                        print(f"Connectivity to {ip} restored.")
-                        # Reset outage flag (optionally you could send a 'Recovery' email here)
-                        recent_outages[ip] = False
-                        
-            print(f"Waiting {CHECK_INTERVAL_SECONDS} seconds for next check...\n")
-            time.sleep(CHECK_INTERVAL_SECONDS)
+    for ip in IPS_TO_CHECK:
+        print(f"Checking {ip}...")
+        is_up, _ = ping(ip)
+        
+        if is_up:
+            print(f"Connectivity to {ip} is UP.")
+            report_lines.append(f"[OK] {ip} is UP.")
+        else:
+            logging.error(f"Connectivity to {ip} failed. Running traceroute...")
+            print(f"Connectivity to {ip} failed. Running traceroute...")
+            trace = tracert(ip)
+            logging.error(f"Traceroute for {ip}:\n{trace}")
             
-    except KeyboardInterrupt:
-        print("Stopping network checker...")
-        logging.info("Network checker stopped by user.")
+            report_lines.append(f"[FAILED] {ip} is DOWN.\nTraceroute:\n{trace}")
+            
+    compiled_report = "\n".join(report_lines)
+    
+    print("\n--- Final Report ---")
+    print(compiled_report)
+    print("--------------------\n")
+    
+    send_email_report(compiled_report)
+    print("Network checker finished.")
 
 if __name__ == "__main__":
     main()
